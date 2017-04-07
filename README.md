@@ -1,15 +1,20 @@
 # spark-ec2-bench
+
 Running Spark 1.6.2 on Tachyon 0.8.2 on EC2, spark-bench by SparkTC
+
+
 
 ## Launch a Cluster on EC2
 
 - Under /usr/local/spark-1.6.2-bin-hadoop2.6/ec2  
 
-  ```bash
+  ````bash
   ./spark-ec2 -k ec2-key-oregon -i ~/AWS/IMPORTANT_PEM/ec2-key-oregon.pem -s 1 --region=us-west-2 --zone=us-west-2a --instance-type=t2.micro launch mytest
-  ```
+  ````
 
   - instanceType = t2.micro
+
+
 
 ## Init
 
@@ -41,13 +46,15 @@ Running Spark 1.6.2 on Tachyon 0.8.2 on EC2, spark-bench by SparkTC
   mvn -version
   ```
 
-------
+---
 
 ## File Transfer
 
 - On local: ` scp -i ec2-key-oregon.pem ~/Desktop/1184-0.txt root@<public-ip-address-of-master>:/root/`
 - On Master:`/root/ephemeral-hdfs/bin/hadoop fs -put 1184-0.txt /`
 - Now the file is stored at `hdfs://<PRIVATE-ip-address-of-master,172.xx.xx.xx>:9000/1184-0.txt`
+
+
 
 ## Run Applications
 
@@ -56,17 +63,19 @@ Running Spark 1.6.2 on Tachyon 0.8.2 on EC2, spark-bench by SparkTC
   - Hadoop fs -put`/root/ephemeral-hdfs/bin/hadoop fs -put /root/spark/data/mllib/sample_linear_regression_data.txt /``
   - Run LinearRegression: ``/root/spark/bin/run-example org.apache.spark.examples.mllib.LinearRegression hdfs://<PRIVATE-ip-address-of-master,172.xx.xx.xx>/sample_linear_regression_data.txt`
 
+
+
 ## Monitoring
 
 - webUI:
-
   - Spark: `http://<public-ip-address-of-master>:8080/`  // or  `:4040`  version: 1.6.3
   - HDFS: `http://<public-ip-address-of-master>:50070/` version: 1.0.4
   - Tachyon: `http://<public-ip-address-of-master>:19999`  version: 0.8.2
 
   > Reference: https://spark.apache.org/docs/1.6.2/monitoring.html
 
-------
+
+---
 
 ## Spark-bench
 
@@ -103,12 +112,12 @@ Running Spark 1.6.2 on Tachyon 0.8.2 on EC2, spark-bench by SparkTC
 
 - Install WikiXMLJ:
 
-  ```Bash
+  ````Bash
   cd /root/
   git clone https://github.com/synhershko/wikixmlj.git
   cd wikixmlj
   mvn package install
-  ```
+  ````
 
   - **BUG**:  (52.0 is Java 8)
 
@@ -168,15 +177,15 @@ Running Spark 1.6.2 on Tachyon 0.8.2 on EC2, spark-bench by SparkTC
 
 - Link hadoop with hdfs (in $HADOOP_HOME)
 
-  ```
+  ````
   ln -s $HADOOP_HOME/bin/hadoop $HADOOP_HOME/bin/hdfs
-  ```
+  ````
 
 - Store the $PATH to .bash_profile 
 
-  ```
+  ````
   vim ~/.bash_profile
-  ```
+  ````
 
   ```bash
   # Keep Original Ones
@@ -199,9 +208,11 @@ Running Spark 1.6.2 on Tachyon 0.8.2 on EC2, spark-bench by SparkTC
 
   Remember to
 
-  ```
+  ````
   source ~/.bash_profile
-  ```
+  ````
+
+
 
 ### Execute
 
@@ -262,7 +273,8 @@ Running Spark 1.6.2 on Tachyon 0.8.2 on EC2, spark-bench by SparkTC
 
 
 
-------
+
+---
 
 ## Run Spark on Tachyon
 
@@ -277,6 +289,7 @@ Running Spark 1.6.2 on Tachyon 0.8.2 on EC2, spark-bench by SparkTC
   ```
 
 - Browser: Tachyon: `http://<public-ip-address-of-master>:19999` 
+
 
 ### Debugging
 
@@ -356,13 +369,82 @@ Running Spark 1.6.2 on Tachyon 0.8.2 on EC2, spark-bench by SparkTC
   counts.take(10)
   ```
 
-  ​
+
 
 ### Spark Submit
 
-
+```bash
+# For Python, you can use the --py-files argument of spark-submit to add .py, .zip or .egg files to be distributed with your application. If you depend on multiple Python files we recommend packaging them into a .zip or .egg.
+# Run a Python application on a Spark standalone cluster
+./bin/spark-submit \
+  --master spark://`cat /root/spark-ec2/masters`:7077 \ # master address
+  examples/src/main/python/pi.py \ # Here is your own file
+  1000 # application-arguments: Arguments passed to the main method of your main class, if any
+```
 
 > Reference: https://spark.apache.org/docs/1.6.3/submitting-applications.html
+
+### Configuring Tachyon
+
+- Edit tachyon-env.sh
+
+  ```bash
+  vim /tachyon/conf/tachyon-env.sh
+  ```
+
+  - ```bash
+    export TACHYON_WORKER_MEMORY_SIZE=512MB # change it into 16MB
+    ```
+
+- Run it on Cluster
+
+  ```bash
+  /root/spark-ec2/copy-dir /root/tachyon
+  /root/tachyon/bin/tachyon format
+  sleep 1
+  /root/tachyon/bin/tachyon-start.sh all Mount
+  ```
+
+  ​
+
+
+
+
+
+
+---
+
+### Data Source:
+
+- The Global Database of Events, Language and Tone (GDELT) Project
+
+  > Reference: http://www.gdeltproject.org/data.html#rawdatafiles
+  >
+  > Download link: http://data.gdeltproject.org/events/index.html
+
+  ```bash
+  wget "http://data.gdeltproject.org/events/20170405.export.CSV.zip"
+  unzip 20170405.export.CSV.zip
+  ```
+
+
+
+
+### My Own workload
+
+- Using Spark SQL, DataFrames and Datasets
+
+  > Reference: https://spark.apache.org/docs/1.6.3/sql-programming-guide.html
+  >
+  > Youtube Video about DataFrame: https://www.youtube.com/watch?v=K14plpZgy_c
+
+
+
+
+
+
+
+
 
 
 
@@ -379,3 +461,12 @@ Running Spark 1.6.2 on Tachyon 0.8.2 on EC2, spark-bench by SparkTC
   ```
 
 - `mvn package -P spark1.6`
+
+
+
+### Destroy
+
+```
+./spark-ec2 -k ec2-key-oregon -i ~/AWS/IMPORTANT_PEM/ec2-key-oregon.pem --region=us-west-2 --zone=us-west-2a destroy mytest
+```
+
