@@ -1,4 +1,4 @@
-# Tachyon 0.8.2 Source Code Reading, 20170421
+# Tachyon-0.8.2-Experiment
 
 ## Startup Tasks for New Contributors
 
@@ -1058,7 +1058,7 @@ Try 5: 46M file on Spark, with 6 * 64M Stored file
   counts3.take(10)
   ```
 
-  The Output: the used space doesn't change. But the actions are speeded up. Wired.
+  The Output: the used space doesn't change. But the actions are speeded up. Weird.
 
   -   MEMORY_ONLY
 
@@ -1072,7 +1072,9 @@ Try 5: 46M file on Spark, with 6 * 64M Stored file
   counts4.take(10)
   ```
 
-  ### 
+  The Output: the used space doesn't change. But the actions are speeded up. Weird.
+
+  ​
 
 
 
