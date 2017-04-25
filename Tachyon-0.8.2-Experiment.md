@@ -200,7 +200,7 @@ csv8594.take(1)
 
 
 
-### My test on EC2-Spark-Tachyon
+### My test on EC2-Spark-Tachyon (Try 2 and Try 5 are successful)
 
 #### Try 1: fail
 
@@ -625,10 +625,9 @@ csv8594.take(1)
     ```
 
 
+#### [Success] Try 5: 46M file on Spark, with 6 * 64M Stored file
 
-Try 5: 46M file on Spark, with 6 * 64M Stored file
-
-- push random files to Tachyon by `./bin/tachyon tfs -put xxx /myData/xxx`
+- push random files to Tachyon by `./bin/tachyon tfs copyFromLocal xxx /myData/xxx`
 
   ```bash
   root@ip-172-31-34-169 tachyon]$ ./bin/tachyon tfs lsr /
