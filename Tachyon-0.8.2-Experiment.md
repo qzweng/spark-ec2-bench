@@ -1151,7 +1151,12 @@ cd /root/tachyon
 
 After that, the meta data of `hdfs:…/myData` will be loaded into Tachyon, but not in memory. Spark will track the meta data and read file from HDFS
 
-- In-memory file: `./bin/tachyon tfs copyFromLocal <src> <dst>`
+- In-memory file: 
+
+  ```bash
+  ./bin/tachyon tfs copyFromLocal <src> <dst>
+  ```
+
 
 - Not-in-memory but *Reachable* file:
 
@@ -1160,8 +1165,142 @@ After that, the meta data of `hdfs:…/myData` will be loaded into Tachyon, but 
   /root/tachyon/bin/tachyon loadufs tachyon://172.31.34.169:19998/myData hdfs://172.31.34.169:9000/myData
   ```
 
-  - Important: the two folder name should be the same!
+  - Important: the two folder name should be the same! You can rename is through `./bin/tachyon tfs mv <xx> <xx>` later
 
+- Then you can persist them into Tachyon through Spark
+
+  ```python
+  sc._jsc.hadoopConfiguration().set("fs.tachyon.impl", "tachyon.hadoop.TFS")
+  inPath = "tachyon://172.31.34.169:19998/InHDFS/csv-46M"
+  csv46MFile = sc.textFile(inPath).persist(StorageLevel.OFF_HEAP)
+  csv46MFile.top(10)
+  csv46MFile.count()
+  ```
+
+- The `LRUEvictor` works if you recently visit certain file through Spark
+
+  ```python
+  inPath = "tachyon://172.31.34.169:19998/myData/myfile6-64M"
+  memFile = sc.textFile(inPath).persist(StorageLevel.OFF_HEAP)
+  memFile.top(10)
+
+  # Tell Spark to build at least 5 partitions:
+  # memFile5Part = sc.textFile(inPath, 5).persist(StorageLevel.OFF_HEAP)
+  ```
+
+  ```bash
+  0.00B     04-26-2017 02:08:00:798                 /myData
+  46.67MB   04-26-2017 02:08:00:860  Not In Memory  /myData/20170422.export.csv
+  64.00MB   04-26-2017 02:08:04:683  Not In Memory  /myData/myfile2-64M
+  # The following one should be evict if not be recently visited by pyspark
+  64.00MB   04-26-2017 02:08:09:636  In Memory      /myData/myfile6-64M
+  # After the visit, the myfile5-64M is evicted instead of myfile6-64M
+  64.00MB   04-26-2017 02:08:16:115  Not In Memory  /myData/myfile5-64M
+  64.00MB   04-26-2017 02:08:22:420  In Memory      /myData/myfile3-64M
+  64.00MB   04-26-2017 02:08:27:582  In Memory      /myData/myfile1-64M
+  46.67MB   04-26-2017 02:08:32:800  In Memory      /myData/csv-46M
+  64.00MB   04-26-2017 02:08:36:492  In Memory      /myData/myfile4-64M
+  ...
+  0.00B     04-26-2017 02:39:19:054                 /tmp_spark_tachyon
+  # spark-635ffe90-5b5b-41fc-aba9-7d70e5010eb2 is the former spark process
+  # after it is closed, its `OFF_HEAP` storage is cleaned.
+  0.00B     04-26-2017 02:39:19:054                 /tmp_spark_tachyon/spark-635ffe90-5b5b-41fc-aba9-7d70e5010eb2
+  0.00B     04-26-2017 02:39:19:054                 /tmp_spark_tachyon/spark-635ffe90-5b5b-41fc-aba9-7d70e5010eb2/0
+  # spark-63af104f-9e1b-4944-ab36-2fbf0e156362 is the recetly running spark process
+  0.00B     04-26-2017 02:52:43:525                 /tmp_spark_tachyon/spark-63af104f-9e1b-4944-ab36-2fbf0e156362
+  0.00B     04-26-2017 02:52:43:525                 /tmp_spark_tachyon/spark-63af104f-9e1b-4944-ab36-2fbf0e156362/0
+  # This is the first file: 46M csv
+  0.00B     04-26-2017 02:52:43:525                 /tmp_spark_tachyon/spark-63af104f-9e1b-4944-ab36-2fbf0e156362/0/spark-tachyon-20170426025243-1ca1
+  0.00B     04-26-2017 02:52:43:538                 /tmp_spark_tachyon/spark-63af104f-9e1b-4944-ab36-2fbf0e156362/0/spark-tachyon-20170426025243-1ca1/15
+  7.41MB    04-26-2017 02:52:43:643  In Memory      /tmp_spark_tachyon/spark-63af104f-9e1b-4944-ab36-2fbf0e156362/0/spark-tachyon-20170426025243-1ca1/15/rdd_1_0
+  # it was distributed to 2 RDD
+  0.00B     04-26-2017 02:52:51:918                 /tmp_spark_tachyon/spark-63af104f-9e1b-4944-ab36-2fbf0e156362/0/spark-tachyon-20170426025243-1ca1/16
+  7.32MB    04-26-2017 02:52:51:975  In Memory      /tmp_spark_tachyon/spark-63af104f-9e1b-4944-ab36-2fbf0e156362/0/spark-tachyon-20170426025243-1ca1/16/rdd_1_1
+  # This is the second file: 64M random file
+  0.00B     04-26-2017 02:56:31:036                 /tmp_spark_tachyon/spark-63af104f-9e1b-4944-ab36-2fbf0e156362/0/spark-tachyon-20170426025243-1ca1/18
+  36.74MB   04-26-2017 02:56:31:065  In Memory      /tmp_spark_tachyon/spark-63af104f-9e1b-4944-ab36-2fbf0e156362/0/spark-tachyon-20170426025243-1ca1/18/rdd_4_0
+  0.00B     04-26-2017 02:56:39:246                 /tmp_spark_tachyon/spark-63af104f-9e1b-4944-ab36-2fbf0e156362/0/spark-tachyon-20170426025243-1ca1/19
+  36.74MB   04-26-2017 02:56:39:318  In Memory      /tmp_spark_tachyon/spark-63af104f-9e1b-4944-ab36-2fbf0e156362/0/spark-tachyon-20170426025243-1ca1/19/rdd_4_1
+  0.00B     04-26-2017 02:56:39:246                 /tmp_spark_tachyon/spark-63af104f-9e1b-4944-ab36-2fbf0e156362/0/spark-tachyon-20170426025243-1ca1/19
+  36.74MB   04-26-2017 02:56:39:318  In Memory      /tmp_spark_tachyon/spark-63af104f-9e1b-4944-ab36-2fbf0e156362/0/spark-tachyon-20170426025243-1ca1/19/rdd_4_1
+  # This is the third file: 64M random file, with minPartitions=5
+  0.00B     04-26-2017 03:07:16:592                 /tmp_spark_tachyon/spark-63af104f-9e1b-4944-ab36-2fbf0e156362/0/spark-tachyon-20170426025243-1ca1/1d
+  14.70MB   04-26-2017 03:07:16:615  In Memory      /tmp_spark_tachyon/spark-63af104f-9e1b-4944-ab36-2fbf0e156362/0/spark-tachyon-20170426025243-1ca1/1d/rdd_9_0
+  0.00B     04-26-2017 03:07:18:793                 /tmp_spark_tachyon/spark-63af104f-9e1b-4944-ab36-2fbf0e156362/0/spark-tachyon-20170426025243-1ca1/1e
+  14.70MB   04-26-2017 03:07:18:840  In Memory      /tmp_spark_tachyon/spark-63af104f-9e1b-4944-ab36-2fbf0e156362/0/spark-tachyon-20170426025243-1ca1/1e/rdd_9_1
+  0.00B     04-26-2017 03:07:20:815                 /tmp_spark_tachyon/spark-63af104f-9e1b-4944-ab36-2fbf0e156362/0/spark-tachyon-20170426025243-1ca1/1f
+  14.70MB   04-26-2017 03:07:20:829  In Memory      /tmp_spark_tachyon/spark-63af104f-9e1b-4944-ab36-2fbf0e156362/0/spark-tachyon-20170426025243-1ca1/1f/rdd_9_2
+  0.00B     04-26-2017 03:07:22:778                 /tmp_spark_tachyon/spark-63af104f-9e1b-4944-ab36-2fbf0e156362/0/spark-tachyon-20170426025243-1ca1/20
+  14.70MB   04-26-2017 03:07:22:792  In Memory      /tmp_spark_tachyon/spark-63af104f-9e1b-4944-ab36-2fbf0e156362/0/spark-tachyon-20170426025243-1ca1/20/rdd_9_3
+  0.00B     04-26-2017 03:07:24:753                 /tmp_spark_tachyon/spark-63af104f-9e1b-4944-ab36-2fbf0e156362/0/spark-tachyon-20170426025243-1ca1/21
+  14.70MB   04-26-2017 03:07:24:770  In Memory      /tmp_spark_tachyon/spark-63af104f-9e1b-4944-ab36-2fbf0e156362/0/spark-tachyon-20170426025243-1ca1/21/rdd_9_4
+  ```
+
+- Show the difference between read-from-memory and read-from-hdfs
+
+  ```bash
+  cd /root/spark/bin
+  vim sortMemFile.py
+  ```
+
+  ```python
+  from pyspark import SparkContext
+  import time
+  sc = SparkContext(appName="sort-mem-files")
+  inPath = "tachyon://172.31.34.169:19998/myData/20170422.export.csv"
+  memFile = sc.textFile(inPath)
+  start_time = time.time()
+  print memFile.top(10)
+  print ("\n\n--- %s seconds ---\n\n" % (time.time() - start_time))
+  ```
+
+  ```bash
+  cd /root/spark/bin
+  vim sortHDFSFile.py
+  ```
+
+  ```python
+  from pyspark import SparkContext
+  import time
+  sc = SparkContext(appName="sort-HDFS-files")
+  inPath = "tachyon://172.31.34.169:19998/InHDFS/20170422.export.csv"
+  HDFSFile = sc.textFile(inPath)
+  start_time = time.time()
+  print HDFSFile.top(10)
+  print ("\n\n--- %s seconds ---\n\n" % (time.time() - start_time))
+
+  HDFSFile.persist(StorageLevel.OFF_HEAP)
+  HDFSFile.take(2)
+
+  start_time = time.time()
+  print HDFSFile.top(10)
+  print ("\n\n--- %s seconds ---\n\n" % (time.time() - start_time))
+
+  ```
+
+  ```bash
+  time ./spark-submit --master spark://172.31.34.169:7077 sortMemFile.py
+  time ./spark-submit --master spark://172.31.34.169:7077 sortHDFSFile.py
+  ```
+
+  - Actually, using merely `time` to decide which is faster is not a good idea, because most of the time is using to submit the job to spark. So the time should better be calculated in the .py file
+
+  - Result: (sorting a 46M csv file's each string line)
+
+  - > sortMemFile.py:
+    >
+    > --- 11.9842998981 seconds ---
+    >
+    > sortHDFSFile.py:
+    >
+    > --- 15.0263700485 seconds ---
+    >
+    > output:
+    >
+    > [u'649158509\t20170422…', u'649158508\t20170422…',u'649158507\t20170422…', u'649158506\t20170422…', …, u'649158500\t20170422…']
+
+  - After `persist(StorageLevel.OFF_HEAP)`, if we delete part of the RDD, there will occur Error `org.apache.spark.storage.BlockFetchException: Failed to fetch block from 1 locations.`. We have to `sc.textFile(inPath)`  and `persist` it again to rebuild the in-memory RDD.
+   - RDD will only re-build the lost part and reuse the existing RDD part.
 
 
 
